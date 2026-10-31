@@ -32,10 +32,10 @@ const idx=new Float32Array(N),rnd=new Float32Array(N*4);for(let i=0;i<N;i++){idx
 geo.setAttribute('aIdx',new THREE.InstancedBufferAttribute(idx,1));geo.setAttribute('aRnd',new THREE.InstancedBufferAttribute(rnd,4));geo.instanceCount=N;
 const TRAIL=32;const trailArr=[],trail2=[];for(let i=0;i<TRAIL;i++){trailArr.push(new THREE.Vector2(0,.8));trail2.push(new THREE.Vector2(0,.8))}
 const U={uTime:{value:0},uFrom:{value:0},uTo:{value:0},uProg:{value:9},uModeT:{value:0},uN:{value:N},
-  uTrail:{value:trailArr},uSpread:{value:1},uSize:{value:.24},uCenter:{value:new THREE.Vector2(0,.8)},uB:{value:.3},uCam:{value:cam.position},uTrail2:{value:trail2},uDual:{value:0},uSide:{value:1},uBT:{value:99},uBType:{value:0},uBF:{value:0},uHand:{value:new THREE.Vector2(0,.8)},uBDir:{value:new THREE.Vector3(1,0,0)}};
+  uTrail:{value:trailArr},uSpread:{value:1},uSize:{value:.24},uCenter:{value:new THREE.Vector2(0,.8)},uB:{value:.3},uCam:{value:cam.position},uTrail2:{value:trail2},uDual:{value:0},uSide:{value:1},uBT:{value:99},uBType:{value:0},uBF:{value:0},uHand:{value:new THREE.Vector2(0,.8)},uBDir:{value:new THREE.Vector3(1,0,0)},uScale:{value:1}};
 const mat=new THREE.ShaderMaterial({uniforms:U,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
 vertexShader:/*glsl*/`
-uniform float uTime,uFrom,uTo,uProg,uModeT,uN,uSpread,uSize;uniform vec2 uTrail[${TRAIL}];uniform vec2 uCenter;uniform vec3 uCam;uniform vec2 uTrail2[${TRAIL}];uniform float uDual,uSide,uBT,uBType,uBF;uniform vec2 uHand;uniform vec3 uBDir;
+uniform float uTime,uFrom,uTo,uProg,uModeT,uN,uSpread,uSize;uniform vec2 uTrail[${TRAIL}];uniform vec2 uCenter;uniform vec3 uCam;uniform vec2 uTrail2[${TRAIL}];uniform float uDual,uSide,uBT,uBType,uBF;uniform vec2 uHand;uniform vec3 uBDir;uniform float uScale;
 attribute float aIdx;attribute vec4 aRnd;varying vec3 vCol;varying float vA;varying vec2 vUv;varying float vPart;
 #define PI 3.14159265
 float h(float n){return fract(sin(n)*43758.5453);}
@@ -104,18 +104,19 @@ vec3 shape(float m,float mt){
 void main(){
   vec3 a=shape(uFrom,9.);vec3 cf=C,df=D;float tf=T,sf=S;
   vec3 b=shape(uTo,uModeT);
-  float p=clamp((uProg-h(aIdx*9.1)*.8)/(.8+h(aIdx*3.9)*.8),0.,1.);float e=p<.5?4.*p*p*p:1.-pow(-2.*p+2.,3.)/2.;
-  vec3 P=mix(a,b,e);vec3 sw=flow(P*.8+aRnd.xyz*2.,uTime)*(.9*sin(PI*e));P+=sw+flow(P*1.3+aRnd.xyz*9.,uTime*(.4+aRnd.w*.6)+aRnd.w*6.)*.06;
+  float p=clamp((uProg-h(aIdx*9.1)*.2)/(.3+h(aIdx*3.9)*.25),0.,1.);float e=p<.5?4.*p*p*p:1.-pow(-2.*p+2.,3.)/2.;
+  vec3 P=mix(a,b,e);float zs=mix(uScale,1.,step(2.5,uTo)*step(uTo,3.5));P=vec3(uCenter,0.)+(P-vec3(uCenter,0.))*zs;vec3 sw=flow(P*.8+aRnd.xyz*2.,uTime)*(.9*sin(PI*e));P+=sw+flow(P*1.3+aRnd.xyz*9.,uTime*(.4+aRnd.w*.6)+aRnd.w*6.)*.06;
   vec3 dir=normalize(mix(df,D,e)+sw*.4+(vec3(h(aIdx*1.1),h(aIdx*1.3),h(aIdx*1.7))-.5)*.25+1e-4);
   float bsel=step(h(aIdx*8.8),uBF);float age=uBT-h(aIdx*4.7)*.3;
   if(bsel>.5&&age>0.&&age<1.9){
     float env=1.-smoothstep(1.1,1.9,age);vec3 bd;vec3 jit=vec3(h(aIdx*2.1),h(aIdx*2.7),h(aIdx*3.1))-.5;float spd=h(aIdx*5.3);
     if(uBType<.5){bd=normalize(uBDir+jit*.3);P=mix(P,vec3(uHand,0.)+jit*.5+bd*age*(9.+spd*9.),env);}
     else if(uBType<1.5){bd=normalize(uBDir+jit*.55);P+=bd*pow(age,1.3)*(6.+spd*7.)*env;}
+    else if(uBType>2.5){bd=normalize(P-vec3(uCenter,0.)+jit*.6);bd.z*=.4;P+=bd*pow(age,.8)*(6.+spd*8.)*env;}
     else{bd=normalize(normalize(P-vec3(uCenter,0.)+jit*.3)+vec3(0.,0.,1.2));P+=bd*pow(age,1.2)*(7.+spd*7.)*env;}
     dir=normalize(mix(dir,bd,env));
   }
-  vCol=mix(cf,C,e);float tl=mix(tf,T,e),sc=mix(sf,S,e)*uSize;
+  vCol=mix(cf,C,e);float tl=mix(tf,T,e),sc=mix(sf,S,e)*uSize*(.6+.4*zs);
   vec3 view=normalize(uCam-P);vec3 X=normalize(cross(dir,view)+1e-5);
   vec3 lp=position;vPart=lp.z;vUv=uv;
   float ly=lp.z>1.5?-.34-lp.y*tl:lp.y;
@@ -135,26 +136,28 @@ const rings=new THREE.Group();scene.add(rings);
 const ringTex=(()=>{const c=document.createElement('canvas');c.width=512;c.height=64;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,64);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.5,'rgba(255,255,255,1)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,512,64);return new THREE.CanvasTexture(c)})();
 [[-.6,4.6,-1,3.6,0xfff4e0],[-.4,4.75,-1,2.7,0xffd59a]].forEach(([x,y,z,R,c])=>{const m=new THREE.Mesh(new THREE.RingGeometry(R-.14,R+.14,220,1),new THREE.MeshBasicMaterial({color:c,map:ringTex,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));m.position.set(x,y,z);m.rotation.x=-1.38;rings.add(m)});
 const EFFECTS=['蒲公英','剑鱼群','剑球漩涡','万剑升空','升剑','横飞','L 阵'];const NAMES=EFFECTS;
-const BURSTS=['剑指发射','飞剑出鞘','冲击波','横扫'];
-const GNAMES=['张开手掌','两根手指（剑指）','握拳','我爱你','食指朝上','剑指横指','L 手势','快速剑指','向前甩手','双掌前推','挥臂横扫'];
-const DEFMAP=['0','1','2','3','4','5','6','b0','b1','b2','b3'];
+const BURSTS=['剑指发射','飞剑出鞘','冲击波','横扫','爆发'];let zoomT=1,zoomLab=1;
+function setZoom(z){zoomT=Math.max(.45,Math.min(2.4,z));if(Math.abs(zoomT-zoomLab)>.12){showLabel(zoomT>zoomLab?'放大':'缩小');zoomLab=zoomT}}
+const GNAMES=['张开手掌','两根手指（剑指）','握拳','我爱你','食指朝上','剑指横指','L 手势','快速剑指','向前甩手','双掌前推','挥臂横扫','双手拉开/合拢','捏合缩放','握拳→张开'];
+const DEFMAP=['0','1','2','3','4','5','6','b0','b1','b2','b3','z','z','b4'];
 const label=document.getElementById('label');let pending=null;
 function showLabel(t){label.classList.remove('on');setTimeout(()=>{label.textContent=t;label.classList.add('on')},250)}
 function setMode(m){
   if(m===U.uTo.value){pending=null;return}
-  if(U.uProg.value<1.2){pending=m;return}   // let the current morph finish: never snap
+  if(U.uProg.value<.5){pending=m;return}   // let the current morph finish: never snap
   U.uFrom.value=U.uTo.value;U.uTo.value=m;U.uProg.value=0;U.uModeT.value=0;pending=null;showLabel(EFFECTS[m]);
 }
-function burst(b,dir){if(U.uBT.value<.75)return;const T=[0,1,2,1][b];U.uBType.value=T;U.uBF.value=b==2?1:b==0?.35:.6;U.uBDir.value.copy(dir||new THREE.Vector3(0,.1,1));U.uBT.value=0;showLabel(BURSTS[b])}
+function burst(b,dir){if(U.uBT.value<.6)return;const T=[0,1,2,1,3][b];U.uBType.value=T;U.uBF.value=b==2||b==4?1:b==0?.35:.6;U.uBDir.value.copy(dir||new THREE.Vector3(0,.1,1));U.uBT.value=0;showLabel(BURSTS[b])}
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();const m={1:0,2:1,3:2,4:3,5:4,6:5,7:6}[k];hideStart();
   if(m!==undefined){setMode(m);return}
   const sx=Math.random()<.5?-1:1;
+  if(k==='+'||k==='=')setZoom(zoomT*1.25);if(k==='-'||k==='_')setZoom(zoomT/1.25);if(k==='b')burst(4);
   if(k==='q')burst(0,new THREE.Vector3(sx,.35,.2));if(k==='w')burst(1,new THREE.Vector3(0,.1,1));if(k==='e')burst(2);if(k==='r')burst(3,new THREE.Vector3(sx,0,0));
   if(k==='s')U.uSide.value*=-1;if(k==='d'){simDual=!simDual;showLabel(simDual?'双手剑指':'单手剑指')}});
 let simDual=false;
 
 // One-Euro filter for the hand
-class OneEuro{constructor(mc=.8,b=.02){this.mc=mc;this.b=b;this.x=null;this.dx=0}
+class OneEuro{constructor(mc=1.6,b=.05){this.mc=mc;this.b=b;this.x=null;this.dx=0}
   a(c,dt){const t=1/(2*Math.PI*c);return 1/(1+t/dt)}
   f(v,dt){if(this.x===null){this.x=v;return v}const d=(v-this.x)/dt;this.dx+=this.a(1,dt)*(d-this.dx);
     const c=this.mc+this.b*Math.abs(this.dx);this.x+=this.a(c,dt)*(v-this.x);return this.x}}
@@ -163,16 +166,16 @@ let last=performance.now(),tick=0;
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000)||.016;last=now;
   U.uTime.value+=dt;U.uProg.value+=dt;U.uModeT.value+=dt;
-  if(pending!==null&&U.uProg.value>=1.2)setMode(pending);
+  if(pending!==null&&U.uProg.value>=.5)setMode(pending);
   if(!camOn){const t=U.uTime.value;rawHand.x=Math.sin(t*.45)*3.6;rawHand.y=.8+Math.sin(t*.9)*1.1}
-  hand.x=fx.f(rawHand.x,dt);hand.y=fy.f(rawHand.y,dt);U.uHand.value.set(hand.x,hand.y);U.uBT.value+=dt;
+  hand.x=fx.f(rawHand.x,dt);hand.y=fy.f(rawHand.y,dt);U.uHand.value.set(hand.x,hand.y);U.uBT.value+=dt;U.uScale.value+=(zoomT-U.uScale.value)*Math.min(1,dt*8);
   if(!camOn){const t=U.uTime.value;raw2=simDual?{x:-rawHand.x*.8,y:.8+Math.cos(t*.8)*1.2}:null}
   if(raw2){hand2.x=fx2.f(raw2.x,dt);hand2.y=fy2.f(raw2.y,dt)}
   U.uDual.value+=(((raw2&&(camOn?dualT>0:simDual))?1:0)-U.uDual.value)*.06;
   trail2[0].lerp(new THREE.Vector2(hand2.x,hand2.y),.25);for(let i=1;i<TRAIL;i++)trail2[i].lerp(trail2[i-1],.32);
   // smoothed trail (spring-follow chain)
-  trailArr[0].lerp(new THREE.Vector2(hand.x,hand.y),.25);
-  for(let i=1;i<TRAIL;i++)trailArr[i].lerp(trailArr[i-1],.32);
+  trailArr[0].lerp(new THREE.Vector2(hand.x,hand.y),.45);
+  for(let i=1;i<TRAIL;i++)trailArr[i].lerp(trailArr[i-1],.45);
   const L=trailArr[0].distanceTo(trailArr[TRAIL-1]);U.uSpread.value+=((L<1.5?1:Math.max(0,1-(L-1.5)/2))-U.uSpread.value)*.03;
   rings.children.forEach((r,i)=>{r.material.opacity+=(((U.uTo.value===3&&U.uProg.value>.8)?.95:0)-r.material.opacity)*.04;r.rotation.z=U.uTime.value*(i?-.2:.15);const t=U.uTime.value;r.rotation.x=-1.38+Math.sin(t*.7+i*2)*.05;r.rotation.y=Math.sin(t*.5+i)*.06;r.position.y=(i?4.75:4.6)+Math.sin(t*.9+i*1.7)*.08;r.scale.setScalar(1+Math.sin(t*1.1+i)*.03)});comp.render(dt);tick++;requestAnimationFrame(frame);
 }
@@ -183,7 +186,7 @@ const video=document.getElementById('cam'),startEl=document.getElementById('star
 function hideStart(){startEl.classList.add('hide');if(!label.textContent)showLabel(EFFECTS[U.uTo.value])}
 document.getElementById('nocam').onclick=()=>{hideStart()};
 document.getElementById('camtoggle').onclick=()=>video.classList.toggle('on');
-const HS={};  // per-hand motion state
+const HS={};let zoom2=null;  // per-hand motion state
 document.getElementById('go').onclick=async()=>{
   errEl.textContent='正在启动…';
   try{
@@ -208,12 +211,16 @@ document.getElementById('go').onclick=async()=>{
           st.vx+=((x-st.x)/dt-st.vx)*.5;st.vy+=((y-st.y)/dt-st.vy)*.5;st.vz+=(((size-st.size)/dt)/size-st.vz)*.5;
           st.x=x;st.y=y;st.size=size;st.t=now;
           const c=classify(r.gestures[i]&&r.gestures[i][0],lm);
-          hands.push({x,y,st,g:c.g,side:c.side});
+          const pr=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y)/size,cur=k=>Math.hypot(lm[k].x-lm[0].x,lm[k].y-lm[0].y)<Math.hypot(lm[k-2].x-lm[0].x,lm[k-2].y-lm[0].y)*1.1;
+          const pinch=(cur(12)&&cur(16)&&cur(20)&&pr<.9&&c.g!==6)?pr:null;hands.push({x,y,st,g:c.g,side:c.side,pinch});
         });
         dualT=hands.length===2&&hands.every(h=>h.g===1||h.g===5)?1:0;
         if(hands.length){
           const A=hands[0];rawHand.x=A.x;rawHand.y=A.y;raw2=hands[1]?{x:hands[1].x,y:hands[1].y}:null;
           U.uCenter.value.lerp(new THREE.Vector2(rawHand.x*.25,.8+rawHand.y*.15),.04);
+          // zoom: two hands apart/together, or one-hand thumb-index pinch spread
+          if(hands.length===2&&!dualT){const dd=Math.hypot(hands[0].x-hands[1].x,hands[0].y-hands[1].y);if(zoom2==null)zoom2={d:dd,z:zoomT};if(MAP[11]==='z')setZoom(zoom2.z*dd/zoom2.d)}else zoom2=null;
+          if(hands.length===1&&hands[0].pinch!=null&&MAP[12]==='z')setZoom(.5+(hands[0].pinch-.1)*2.6);
           // dynamic gestures (velocity based)
           let dyn=null;
           if(hands.length===2&&hands.every(h=>h.g===0&&h.st.vz>1.1))dyn=[9];
@@ -221,10 +228,10 @@ document.getElementById('go').onclick=async()=>{
             if((h.g===1||h.g===5)&&sp>8){dyn=[7,new THREE.Vector3(h.st.vx,h.st.vy,sp*.15).normalize(),h];break}
             if(h.g!==0&&h.st.vz>1.6){dyn=[8,new THREE.Vector3(0,.1,1),h];break}
             if(Math.abs(h.st.vx)>12&&Math.abs(h.st.vx)>2*Math.abs(h.st.vy)){dyn=[10,new THREE.Vector3(Math.sign(h.st.vx),0,0),h];break}}
-          if(dyn){if(dyn[2]){U.uHand.value.set(dyn[2].x,dyn[2].y)}onGesture(dyn[0],{dir:dyn[1]})}
+          if(dyn&&MAP[dyn[0]]!=null){if(dyn[2]){U.uHand.value.set(dyn[2].x,dyn[2].y)}onGesture(dyn[0],{dir:dyn[1]})}
           // static gestures (debounced); ILY with either hand wins
           const pick=hands.find(h=>h.g===3)||hands.find(h=>h.g!==null);
-          if(pick){if(pick.side)U.uSide.value=pick.side;const g=pick.g;if(g===cand)cnt++;else{cand=g;cnt=1}if(cnt>=4&&g!==lastG){lastG=g;onGesture(g)}}
+          if(pick){if(pick.side)U.uSide.value=pick.side;const g=pick.g;if(g===cand)cnt++;else{cand=g;cnt=1}if(cnt>=2&&g!==lastG){if(lastG===2&&g===0)onGesture(13);lastG=g;onGesture(g)}}
         }
       }
       requestAnimationFrame(loop)};loop();
@@ -247,13 +254,13 @@ function classify(top,lm){
 // ---- gesture -> effect mapping (user configurable) ----
 let MAP;try{MAP=JSON.parse(localStorage.getItem('gs_map'))}catch(e){}
 if(!Array.isArray(MAP))MAP=[];MAP=DEFMAP.map((d,i)=>MAP[i]!=null?MAP[i]:d);
-function onGesture(g,ctx){const v=MAP[g];if(v==='off')return;let val=v;
-  if(v==='r'){const pool=g>=7?['b0','b1','b2','b3']:['0','1','2','3','4','5','6'].filter(x=>+x!==U.uTo.value);val=pool[Math.floor(Math.random()*pool.length)]}
+function onGesture(g,ctx){const v=MAP[g];if(v==='off'||v==='z')return;let val=v;
+  if(v==='r'){const pool=g>=7?['b0','b1','b2','b3','b4']:['0','1','2','3','4','5','6'].filter(x=>+x!==U.uTo.value);val=pool[Math.floor(Math.random()*pool.length)]}
   if(val[0]==='b'){const b=+val[1];let dir=ctx&&ctx.dir;if(!dir)dir=[new THREE.Vector3(1,.3,.2),new THREE.Vector3(0,.1,1),null,new THREE.Vector3(1,0,0)][b];burst(b,dir)}
   else{setMode(+val);showLabel(GNAMES[g].replace(/（.*）/,'')+' · '+EFFECTS[+val])}}
 window.onGesture=onGesture;
 const gear=document.getElementById('gear'),panel=document.getElementById('panel');
-const OPTS=EFFECTS.map((e,i)=>`<option value="${i}">${e}</option>`).join('')+BURSTS.map((b,i)=>`<option value="b${i}">${b}</option>`).join('')+'<option value="r">随机</option><option value="off">关闭</option>';
+const OPTS=EFFECTS.map((e,i)=>`<option value="${i}">${e}</option>`).join('')+BURSTS.map((b,i)=>`<option value="b${i}">${b}</option>`).join('')+'<option value="z">放大/缩小</option><option value="r">随机</option><option value="off">关闭</option>';
 panel.innerHTML='<div class="ph">手势设置</div>'+GNAMES.map((n,g)=>`<label>${n}<select data-g="${g}">${OPTS}</select></label>`).join('')+'<button id="reset" class="ghost">恢复默认</button>';
 const syncSel=()=>panel.querySelectorAll('select').forEach(sel=>{sel.value=MAP[sel.dataset.g]});syncSel();
 panel.querySelectorAll('select').forEach(sel=>sel.onchange=()=>{MAP[sel.dataset.g]=sel.value;localStorage.setItem('gs_map',JSON.stringify(MAP))});
