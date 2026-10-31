@@ -45,52 +45,58 @@ vec3 green(float k){return mix(vec3(.2,1.,.45),vec3(1.,.82,.25),k);}
 vec3 trailAt(float u){float f=clamp(u,0.,1.)*${TRAIL-1}.,i0=floor(f);return vec3(mix(uTrail[int(i0)],uTrail[int(min(i0+1.,${TRAIL-1}.))],f-i0),0.);}
 vec3 shape(float m,float mt){
   vec3 c=vec3(uCenter,0.);vec4 r=aRnd;S=1.;
-  if(m<.5){ // open palm: dandelion of radial swords
-    float y=1.-2.*(aIdx+.5)/uN,rr=sqrt(max(0.,1.-y*y)),th=aIdx*2.399963+uTime*.12;
-    D=vec3(cos(th)*rr,y,sin(th)*rr);float rad=(1.55+r.x*.35)*(1.+.02*sin(uTime*1.4+y*3.));
-    C=green(r.y*.55);T=.15;S=.85+r.z*.3;return c+D*rad;
+  if(m<.5){ // open palm: uneven dandelion
+    float y=r.y*2.-1.,rr=sqrt(max(0.,1.-y*y)),th=r.x*6.2831+uTime*.1;
+    D=normalize(vec3(cos(th)*rr,y,sin(th)*rr)+(vec3(h(aIdx*.71),h(aIdx*.53),h(aIdx*.91))-.5)*.35);
+    float n=sin(D.x*3.1+uTime*.4)*sin(D.y*2.7-uTime*.3)*sin(D.z*3.3+1.);
+    float rad=1.25+n*.35+pow(h(aIdx*2.3),2.)*.9;           // uneven radius, some long spikes
+    if(h(aIdx*5.1)<.04)rad*=1.6+h(aIdx*7.)*.8;             // stragglers
+    C=green(r.w*.6);T=.1+h(aIdx*3.3)*.25;S=.55+pow(h(aIdx*4.4),2.)*1.1;
+    return c+D*rad+flow(D*2.+r.xyz*4.,uTime*(.5+r.w))*.06;
   }else if(m<1.5){ // two fingers: loose voluminous school of swords swirling around the hand path
     float u=pow(r.x,1.2);vec3 p=trailAt(u),p2=trailAt(u+.04);vec3 tg=p-p2;
     tg+=vec3(-.06*uSpread,0.,0.);
     vec3 ax=normalize(tg+vec3(1e-4,0.,0.));vec3 n1=normalize(cross(ax,vec3(0.,0.,1.)+vec3(.0,.001,0.)));vec3 n2=cross(ax,n1);
     float w=(.6+1.5*sin(u*PI))*(.8+.2*sin(uTime*1.3+u*7.));float sp=.7+r.w*.9;
-    float an=r.y*6.2831+uTime*sp;float rad=w*(.25+.75*sqrt(r.z));
+    float an=r.y*6.2831+uTime*sp*(h(aIdx*.9)<.5?1.:-.7);float rad=w*(.2+.8*sqrt(r.z))*(.8+.4*sin(uTime*.9+r.x*20.));
     vec3 o=(n1*cos(an)+n2*sin(an))*rad;
     o+=flow(vec3(u*4.,r.y*3.,r.z*3.),uTime*.8)*.18;
     o.x+=(u-.5)*7.5*uSpread;
     D=normalize(ax*1.6+(-n1*sin(an)+n2*cos(an))*.9);
-    C=green(r.w*.6);T=.9;S=1.3+r.z*.5;return p+o;
+    C=green(r.w*.6);T=.5+h(aIdx*2.9)*.9;S=.7+pow(h(aIdx*4.1),2.)*1.4;if(h(aIdx*5.7)<.05)o*=1.8;return p+o;
   }else if(m<2.5){ // fist: implode, burst, then a swirling globe of swords
-    float y=1.-2.*(aIdx+.5)/uN,rr=sqrt(max(0.,1.-y*y));
-    float phi=aIdx*2.399963+uTime*1.1*(1.25-abs(y));
-    vec3 gl=vec3(cos(phi)*rr,y,sin(phi)*rr)*1.7;
+    float y=r.y*2.-1.,rr=sqrt(max(0.,1.-y*y));
+    float phi=r.x*6.2831+uTime*(.8+.6*h(aIdx*1.9))*(1.25-abs(y));
+    float gr=1.7*(.82+.3*h(aIdx*3.7))+sin(phi*3.+y*4.+uTime*.7)*.12;
+    if(h(aIdx*5.3)<.05)gr*=1.3+h(aIdx*6.1)*.5;
+    vec3 gl=vec3(cos(phi)*rr,y,sin(phi)*rr)*gr+flow(vec3(phi,y*3.,r.z*5.),uTime*(.6+r.w))*.07;
     float t=mt,s;
     if(t<.28){float e=t/.28;s=1.-.97*e*e;}
     else if(t<.9){float e=(t-.28)/.62;s=.03+3.2*(1.-pow(1.-e,3.));}
     else{float e=clamp((t-.9)/1.3,0.,1.);e=e*e*(3.-2.*e);s=mix(3.23,1.,e);}
     float sc=s>1.?1.+(s-1.)*(.6+.8*r.z):s;
-    vec3 tang=vec3(-sin(phi),.0,cos(phi));vec3 rd=normalize(gl);
+    vec3 tang=vec3(-sin(phi),.0,cos(phi))+(vec3(h(aIdx*.3),h(aIdx*.6),h(aIdx*.8))-.5)*.9;vec3 rd=normalize(gl);
     D=normalize(mix(tang+vec3(0.,.35*sign(y+.001),0.),rd,smoothstep(.28,.5,t)*(1.-smoothstep(.9,1.6,t))));
-    C=green(.35+r.y*.65);T=.25;S=.8+r.z*.3;return c+gl*sc;
+    C=green(.35+r.y*.65);T=.15+h(aIdx*2.9)*.3;S=.5+pow(h(aIdx*4.1),2.)*1.1;return c+gl*sc;
   }else{ // I-love-you: the sword field — swords stand upright and fly upward with light trails
-    float W=13.,H=11.;float z=-5.+r.z*7.;float sp=1.6+r.w*2.6;
+    float W=13.,H=11.+h(aIdx*.4)*4.;float z=-5.+r.z*7.;float sp=.9+pow(r.w,2.)*4.;
     float y=mod(r.y*H+uTime*sp,H)-H*.5-.6;
-    D=vec3(0.,1.,0.);C=h(aIdx*.37)<.4?vec3(1.,.72,.12):mix(vec3(.1,1.,.35),vec3(.45,1.,.4),r.w);
-    T=1.4+r.w*1.8;S=h(aIdx*1.7)<.72?0.:2.6+r.x*2.;return vec3((r.x-.5)*W*(1.+(-z)*.08),y,z);
+    D=normalize(vec3(sin(uTime*.7+r.x*30.)*.12+(h(aIdx*.8)-.5)*.2,1.,0.));C=h(aIdx*.37)<.4?vec3(1.,.72,.12):mix(vec3(.1,1.,.35),vec3(.45,1.,.4),r.w);
+    T=1.4+r.w*1.8;S=h(aIdx*1.7)<.72?0.:1.6+pow(h(aIdx*4.1),1.5)*3.4;return vec3((r.x-.5)*W*(1.+(-z)*.08)+sin(uTime*(.3+r.w)+r.y*40.)*.35,y,z);
   }
 }
 void main(){
   vec3 a=shape(uFrom,9.);vec3 cf=C,df=D;float tf=T,sf=S;
   vec3 b=shape(uTo,uModeT);
-  float p=clamp((uProg-aRnd.z*.55)/1.15,0.,1.);float e=p<.5?4.*p*p*p:1.-pow(-2.*p+2.,3.)/2.;
-  vec3 P=mix(a,b,e);vec3 sw=flow(P*.8+aRnd.xyz*2.,uTime)*(.9*sin(PI*e));P+=sw+flow(P*1.3,uTime*.6+aRnd.w*6.)*.02;
-  vec3 dir=normalize(mix(df,D,e)+sw*.4+1e-4);
+  float p=clamp((uProg-h(aIdx*9.1)*.8)/(.8+h(aIdx*3.9)*.8),0.,1.);float e=p<.5?4.*p*p*p:1.-pow(-2.*p+2.,3.)/2.;
+  vec3 P=mix(a,b,e);vec3 sw=flow(P*.8+aRnd.xyz*2.,uTime)*(.9*sin(PI*e));P+=sw+flow(P*1.3+aRnd.xyz*9.,uTime*(.4+aRnd.w*.6)+aRnd.w*6.)*.06;
+  vec3 dir=normalize(mix(df,D,e)+sw*.4+(vec3(h(aIdx*1.1),h(aIdx*1.3),h(aIdx*1.7))-.5)*.25+1e-4);
   vCol=mix(cf,C,e);float tl=mix(tf,T,e),sc=mix(sf,S,e)*uSize;
   vec3 view=normalize(uCam-P);vec3 X=normalize(cross(dir,view)+1e-5);
   vec3 lp=position;vPart=lp.z;vUv=uv;
   float ly=lp.z>1.5?-.34-lp.y*tl:lp.y;
   vec3 W=P+(X*lp.x+dir*ly)*sc;
-  vA=1.;gl_Position=projectionMatrix*viewMatrix*vec4(W,1.);
+  vA=.45+1.1*pow(h(aIdx*6.6),2.);gl_Position=projectionMatrix*viewMatrix*vec4(W,1.);
 }`,
 fragmentShader:/*glsl*/`
 uniform float uB;varying vec3 vCol;varying float vA;varying vec2 vUv;varying float vPart;
@@ -98,7 +104,7 @@ void main(){float ax=abs(vUv.x),a;vec3 col=vCol;
  if(vPart<.5){float hw=1.-smoothstep(.62,1.,vUv.y);a=smoothstep(hw,hw*.2,ax);col=mix(vCol,vec3(1.),.45*(1.-ax));}
  else if(vPart<1.5){a=(1.-pow(ax,6.))*.8;}
  else{a=pow(1.-vUv.y,2.)*(1.-ax)*.55;}
- gl_FragColor=vec4(col*a*uB,1.);}`});
+ gl_FragColor=vec4(col*a*uB*vA,1.);}`});
 const pts=new THREE.Mesh(geo,mat);pts.frustumCulled=false;scene.add(pts);
 // halo rings for 我爱你
 const rings=new THREE.Group();scene.add(rings);
@@ -131,7 +137,7 @@ function frame(now){
   trailArr[0].lerp(new THREE.Vector2(hand.x,hand.y),.25);
   for(let i=1;i<TRAIL;i++)trailArr[i].lerp(trailArr[i-1],.32);
   const L=trailArr[0].distanceTo(trailArr[TRAIL-1]);U.uSpread.value+=((L<1.5?1:Math.max(0,1-(L-1.5)/2))-U.uSpread.value)*.03;
-  rings.children.forEach((r,i)=>{r.material.opacity+=(((U.uTo.value===3&&U.uProg.value>.8)?.95:0)-r.material.opacity)*.04;r.rotation.z=U.uTime.value*(i?-.2:.15)});comp.render(dt);tick++;requestAnimationFrame(frame);
+  rings.children.forEach((r,i)=>{r.material.opacity+=(((U.uTo.value===3&&U.uProg.value>.8)?.95:0)-r.material.opacity)*.04;r.rotation.z=U.uTime.value*(i?-.2:.15);const t=U.uTime.value;r.rotation.x=-1.38+Math.sin(t*.7+i*2)*.05;r.rotation.y=Math.sin(t*.5+i)*.06;r.position.y=(i?4.75:4.6)+Math.sin(t*.9+i*1.7)*.08;r.scale.setScalar(1+Math.sin(t*1.1+i)*.03)});comp.render(dt);tick++;requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);window.__fps=()=>tick;
 
