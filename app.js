@@ -33,6 +33,7 @@ geo.setAttribute('aIdx',new THREE.InstancedBufferAttribute(idx,1));geo.setAttrib
 const TRAIL=32;const trailArr=[],trail2=[];for(let i=0;i<TRAIL;i++){trailArr.push(new THREE.Vector2(0,.8));trail2.push(new THREE.Vector2(0,.8))}
 const U={uTime:{value:0},uFrom:{value:0},uTo:{value:0},uProg:{value:9},uModeT:{value:0},uN:{value:N},
   uTrail:{value:trailArr},uSpread:{value:1},uSize:{value:.24},uCenter:{value:new THREE.Vector2(0,.8)},uB:{value:.3},uCam:{value:cam.position},uTrail2:{value:trail2},uDual:{value:0},uSide:{value:1},uBT:{value:99},uBType:{value:0},uBF:{value:0},uHand:{value:new THREE.Vector2(0,.8)},uBDir:{value:new THREE.Vector3(1,0,0)},uScale:{value:1}};
+U.uFrom.value=2;U.uTo.value=2;U.uModeT.value=9;
 const mat=new THREE.ShaderMaterial({uniforms:U,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
 vertexShader:/*glsl*/`
 uniform float uTime,uFrom,uTo,uProg,uModeT,uN,uSpread,uSize;uniform vec2 uTrail[${TRAIL}];uniform vec2 uCenter;uniform vec3 uCam;uniform vec2 uTrail2[${TRAIL}];uniform float uDual,uSide,uBT,uBType,uBF;uniform vec2 uHand;uniform vec3 uBDir;uniform float uScale;
@@ -148,16 +149,11 @@ function setMode(m){
   U.uFrom.value=U.uTo.value;U.uTo.value=m;U.uProg.value=0;U.uModeT.value=0;pending=null;showLabel(EFFECTS[m]);
 }
 function burst(b,dir){if(U.uBT.value<.6)return;const T=[0,1,2,1,3][b];U.uBType.value=T;U.uBF.value=b==2||b==4?1:b==0?.35:.6;U.uBDir.value.copy(dir||new THREE.Vector3(0,.1,1));U.uBT.value=0;showLabel(BURSTS[b])}
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();const m={1:0,2:1,3:2,4:3,5:4,6:5,7:6}[k];hideStart();
-  if(m!==undefined){setMode(m);return}
-  const sx=Math.random()<.5?-1:1;
-  if(k==='+'||k==='=')setZoom(zoomT*1.25);if(k==='-'||k==='_')setZoom(zoomT/1.25);if(k==='b')burst(4);
-  if(k==='q')burst(0,new THREE.Vector3(sx,.35,.2));if(k==='w')burst(1,new THREE.Vector3(0,.1,1));if(k==='e')burst(2);if(k==='r')burst(3,new THREE.Vector3(sx,0,0));
-  if(k==='s')U.uSide.value*=-1;if(k==='d'){simDual=!simDual;showLabel(simDual?'双手剑指':'单手剑指')}});
+addEventListener('keydown',e=>{const k=e.key;hideStart();if(k==='+'||k==='=')setZoom(zoomT*1.25);if(k==='-'||k==='_')setZoom(zoomT/1.25)});
 let simDual=false;
 
 // One-Euro filter for the hand
-class OneEuro{constructor(mc=1.6,b=.05){this.mc=mc;this.b=b;this.x=null;this.dx=0}
+class OneEuro{constructor(mc=1.2,b=.08){this.mc=mc;this.b=b;this.x=null;this.dx=0}
   a(c,dt){const t=1/(2*Math.PI*c);return 1/(1+t/dt)}
   f(v,dt){if(this.x===null){this.x=v;return v}const d=(v-this.x)/dt;this.dx+=this.a(1,dt)*(d-this.dx);
     const c=this.mc+this.b*Math.abs(this.dx);this.x+=this.a(c,dt)*(v-this.x);return this.x}}
@@ -167,8 +163,8 @@ function frame(now){
   const dt=Math.min(.05,(now-last)/1000)||.016;last=now;
   U.uTime.value+=dt;U.uProg.value+=dt;U.uModeT.value+=dt;
   if(pending!==null&&U.uProg.value>=.5)setMode(pending);
-  if(!camOn){const t=U.uTime.value;rawHand.x=Math.sin(t*.45)*3.6;rawHand.y=.8+Math.sin(t*.9)*1.1}
-  hand.x=fx.f(rawHand.x,dt);hand.y=fy.f(rawHand.y,dt);U.uHand.value.set(hand.x,hand.y);U.uBT.value+=dt;U.uScale.value+=(zoomT-U.uScale.value)*Math.min(1,dt*8);
+  if(!present){const t=U.uTime.value;rawHand.x+=((Math.sin(t*.3)*.6)-rawHand.x)*.02;rawHand.y+=((.6+Math.sin(t*.45)*.3)-rawHand.y)*.02;zoomT+=(1-zoomT)*.005}
+  hand.x=fx.f(rawHand.x,dt);hand.y=fy.f(rawHand.y,dt);U.uHand.value.set(hand.x,hand.y);U.uCenter.value.set(hand.x,hand.y);U.uModeT.value=Math.max(U.uModeT.value,9);U.uBT.value+=dt;U.uScale.value+=(zoomT-U.uScale.value)*Math.min(1,dt*8);
   if(!camOn){const t=U.uTime.value;raw2=simDual?{x:-rawHand.x*.8,y:.8+Math.cos(t*.8)*1.2}:null}
   if(raw2){hand2.x=fx2.f(raw2.x,dt);hand2.y=fy2.f(raw2.y,dt)}
   U.uDual.value+=(((raw2&&(camOn?dualT>0:simDual))?1:0)-U.uDual.value)*.06;
@@ -186,84 +182,42 @@ const video=document.getElementById('cam'),startEl=document.getElementById('star
 function hideStart(){startEl.classList.add('hide');if(!label.textContent)showLabel(EFFECTS[U.uTo.value])}
 document.getElementById('nocam').onclick=()=>{hideStart()};
 document.getElementById('camtoggle').onclick=()=>video.classList.toggle('on');
-const HS={};let zoom2=null;  // per-hand motion state
+let present=false,seen=0,miss=0,base2=null,d2=null,pin=null;
+// hands: [{x,y,pinch|null}] in world units. Only follow + zoom; nothing else can trigger.
+function processHands(hands){
+  if(hands.length){seen++;miss=0}else{miss++;seen=0}
+  if(!present&&seen>=2){present=true;showLabel('跟随')}
+  if(present&&miss>=10){present=false;base2=null;d2=null;pin=null;showLabel('待机')}
+  if(!present||!hands.length)return;
+  rawHand.x=hands.length===2?(hands[0].x+hands[1].x)/2:hands[0].x;rawHand.y=hands.length===2?(hands[0].y+hands[1].y)/2:hands[0].y;
+  if(hands.length===2){const d=Math.hypot(hands[0].x-hands[1].x,hands[0].y-hands[1].y);d2=d2==null?d:d2+(d-d2)*.25;
+    if(!base2)base2={d:d2,z:zoomT,n:0};base2.n++;
+    if(base2.n>3){const t=base2.z*d2/Math.max(.5,base2.d);if(Math.abs(t-zoomT)>.04)setZoom(t)}pin=null;return}
+  base2=null;d2=null;
+  const p=hands[0].pinch;if(p==null){pin=null;return}
+  pin=pin==null?p:pin+(p-pin)*.15;const t=.6+(Math.min(.9,Math.max(.15,pin))-.15)/.75*1.2;if(Math.abs(t-zoomT)>.06)setZoom(t);
+}
+window.__sim=processHands;window.__c=()=>[U.uCenter.value.x,U.uCenter.value.y,zoomT,present];
 document.getElementById('go').onclick=async()=>{
   errEl.textContent='正在启动…';
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
     video.srcObject=stream;await video.play();video.classList.add('on');
     const V='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-    const {GestureRecognizer,FilesetResolver}=await import(V+'/vision_bundle.mjs');
+    const {HandLandmarker,FilesetResolver}=await import(V+'/vision_bundle.mjs');
     const fs=await FilesetResolver.forVisionTasks(V+'/wasm');
-    const o=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.5,minTrackingConfidence:.4});
-    let rec;try{rec=await GestureRecognizer.createFromOptions(fs,o('GPU'))}catch(e){rec=await GestureRecognizer.createFromOptions(fs,o('CPU'))}
-    hideStart();camOn=true;showLabel('举起手');
-    let cand=null,cnt=0,lt=-1,lastG=null;
+    const o=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.6,minTrackingConfidence:.5});
+    let rec;try{rec=await HandLandmarker.createFromOptions(fs,o('GPU'))}catch(e){rec=await HandLandmarker.createFromOptions(fs,o('CPU'))}
+    hideStart();camOn=true;showLabel('举起手');let lt=-1;
+    const hh=Math.tan(55/2*Math.PI/180)*11;
     const loop=()=>{
-      if(video.readyState>=2&&video.currentTime!==lt){lt=video.currentTime;const now=performance.now();
-        const r=rec.recognizeForVideo(video,now);const hands=[];
-        const hh=Math.tan(55/2*Math.PI/180)*11,hw=hh*cam.aspect;
-        (r.landmarks||[]).forEach((lm,i)=>{
-          const key=(r.handednesses&&r.handednesses[i]&&r.handednesses[i][0].categoryName)||('h'+i);
-          const p=lm[9],x=(.5-p.x)*2*hw*.85,y=(.5-p.y)*2*hh*.85,size=Math.hypot(lm[0].x-lm[9].x,lm[0].y-lm[9].y);
-          let st=HS[key];if(!st)st=HS[key]={x,y,size,t:now,vx:0,vy:0,vz:0};
-          const dt=Math.max(.016,(now-st.t)/1000);
-          st.vx+=((x-st.x)/dt-st.vx)*.5;st.vy+=((y-st.y)/dt-st.vy)*.5;st.vz+=(((size-st.size)/dt)/size-st.vz)*.5;
-          st.x=x;st.y=y;st.size=size;st.t=now;
-          const c=classify(r.gestures[i]&&r.gestures[i][0],lm);
-          const pr=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y)/size,cur=k=>Math.hypot(lm[k].x-lm[0].x,lm[k].y-lm[0].y)<Math.hypot(lm[k-2].x-lm[0].x,lm[k-2].y-lm[0].y)*1.1;
-          const pinch=(cur(12)&&cur(16)&&cur(20)&&pr<.9&&c.g!==6)?pr:null;hands.push({x,y,st,g:c.g,side:c.side,pinch});
-        });
-        dualT=hands.length===2&&hands.every(h=>h.g===1||h.g===5)?1:0;
-        if(hands.length){
-          const A=hands[0];rawHand.x=A.x;rawHand.y=A.y;raw2=hands[1]?{x:hands[1].x,y:hands[1].y}:null;
-          U.uCenter.value.lerp(new THREE.Vector2(rawHand.x*.25,.8+rawHand.y*.15),.04);
-          // zoom: two hands apart/together, or one-hand thumb-index pinch spread
-          if(hands.length===2&&!dualT){const dd=Math.hypot(hands[0].x-hands[1].x,hands[0].y-hands[1].y);if(zoom2==null)zoom2={d:dd,z:zoomT};if(MAP[11]==='z')setZoom(zoom2.z*dd/zoom2.d)}else zoom2=null;
-          if(hands.length===1&&hands[0].pinch!=null&&MAP[12]==='z')setZoom(.5+(hands[0].pinch-.1)*2.6);
-          // dynamic gestures (velocity based)
-          let dyn=null;
-          if(hands.length===2&&hands.every(h=>h.g===0&&h.st.vz>1.1))dyn=[9];
-          if(!dyn)for(const h of hands){const sp=Math.hypot(h.st.vx,h.st.vy);
-            if((h.g===1||h.g===5)&&sp>8){dyn=[7,new THREE.Vector3(h.st.vx,h.st.vy,sp*.15).normalize(),h];break}
-            if(h.g!==0&&h.st.vz>1.6){dyn=[8,new THREE.Vector3(0,.1,1),h];break}
-            if(Math.abs(h.st.vx)>12&&Math.abs(h.st.vx)>2*Math.abs(h.st.vy)){dyn=[10,new THREE.Vector3(Math.sign(h.st.vx),0,0),h];break}}
-          if(dyn&&MAP[dyn[0]]!=null){if(dyn[2]){U.uHand.value.set(dyn[2].x,dyn[2].y)}onGesture(dyn[0],{dir:dyn[1]})}
-          // static gestures (debounced); ILY with either hand wins
-          const pick=hands.find(h=>h.g===3)||hands.find(h=>h.g!==null);
-          if(pick){if(pick.side)U.uSide.value=pick.side;const g=pick.g;if(g===cand)cnt++;else{cand=g;cnt=1}if(cnt>=2&&g!==lastG){if(lastG===2&&g===0)onGesture(13);lastG=g;onGesture(g)}}
-        }
+      if(video.readyState>=2&&video.currentTime!==lt){lt=video.currentTime;
+        const r=rec.detectForVideo(video,performance.now());const hw=hh*cam.aspect;
+        processHands((r.landmarks||[]).map(lm=>{const p=lm[9],size=Math.hypot(lm[0].x-lm[9].x,lm[0].y-lm[9].y)+1e-6;
+          const cur=k=>Math.hypot(lm[k].x-lm[0].x,lm[k].y-lm[0].y)<Math.hypot(lm[k-2].x-lm[0].x,lm[k-2].y-lm[0].y)*1.1;
+          const pr=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y)/size;
+          return{x:(.5-p.x)*2*hw*.85,y:(.5-p.y)*2*hh*.85,pinch:(cur(12)&&cur(16)&&cur(20))?pr:null}}));
       }
       requestAnimationFrame(loop)};loop();
-  }catch(e){errEl.textContent='摄像头启动失败：'+e.message+'（可用键盘）'}
+  }catch(e){errEl.textContent='摄像头启动失败：'+e.message}
 };
-function classify(top,lm){
-  const w=lm[0],d=a=>Math.hypot(a.x-w.x,a.y-w.y),ext=f=>d(lm[f])>d(lm[f-2])*1.1;
-  const I=ext(8),M=ext(12),R=ext(16),P=ext(20),T=Math.hypot(lm[4].x-lm[17].x,lm[4].y-lm[17].y)>Math.hypot(lm[2].x-lm[17].x,lm[2].y-lm[17].y)*1.15;
-  const ix=lm[8].x-lm[5].x,iy=lm[8].y-lm[5].y,tx=lm[4].x-lm[2].x,ty=lm[4].y-lm[2].y;
-  const cosA=(ix*tx+iy*ty)/(Math.hypot(ix,iy)*Math.hypot(tx,ty)+1e-6);
-  const name=top&&top.score>.55?top.categoryName:'';
-  if(name==='ILoveYou'||(I&&P&&!M&&!R&&T))return{g:3};
-  if(I&&T&&!M&&!R&&!P&&cosA<.45)return{g:6};                                  // L shape
-  if((name==='Victory'||(I&&M&&!R&&!P))){if(Math.abs(ix)>1.3*Math.abs(iy))return{g:5,side:ix>0?-1:1};return{g:1}}
-  if(name==='Pointing_Up'||(I&&!M&&!R&&!P&&-iy>1.5*Math.abs(ix)))return{g:4};
-  if(name==='Open_Palm'||(I&&M&&R&&P))return{g:0};
-  if(name==='Closed_Fist'||(!I&&!M&&!R&&!P))return{g:2};
-  return{g:null};
-}
-// ---- gesture -> effect mapping (user configurable) ----
-let MAP;try{MAP=JSON.parse(localStorage.getItem('gs_map'))}catch(e){}
-if(!Array.isArray(MAP))MAP=[];MAP=DEFMAP.map((d,i)=>MAP[i]!=null?MAP[i]:d);
-function onGesture(g,ctx){const v=MAP[g];if(v==='off'||v==='z')return;let val=v;
-  if(v==='r'){const pool=g>=7?['b0','b1','b2','b3','b4']:['0','1','2','3','4','5','6'].filter(x=>+x!==U.uTo.value);val=pool[Math.floor(Math.random()*pool.length)]}
-  if(val[0]==='b'){const b=+val[1];let dir=ctx&&ctx.dir;if(!dir)dir=[new THREE.Vector3(1,.3,.2),new THREE.Vector3(0,.1,1),null,new THREE.Vector3(1,0,0)][b];burst(b,dir)}
-  else{setMode(+val);showLabel(GNAMES[g].replace(/（.*）/,'')+' · '+EFFECTS[+val])}}
-window.onGesture=onGesture;
-const gear=document.getElementById('gear'),panel=document.getElementById('panel');
-const OPTS=EFFECTS.map((e,i)=>`<option value="${i}">${e}</option>`).join('')+BURSTS.map((b,i)=>`<option value="b${i}">${b}</option>`).join('')+'<option value="z">放大/缩小</option><option value="r">随机</option><option value="off">关闭</option>';
-panel.innerHTML='<div class="ph">手势设置</div>'+GNAMES.map((n,g)=>`<label>${n}<select data-g="${g}">${OPTS}</select></label>`).join('')+'<button id="reset" class="ghost">恢复默认</button>';
-const syncSel=()=>panel.querySelectorAll('select').forEach(sel=>{sel.value=MAP[sel.dataset.g]});syncSel();
-panel.querySelectorAll('select').forEach(sel=>sel.onchange=()=>{MAP[sel.dataset.g]=sel.value;localStorage.setItem('gs_map',JSON.stringify(MAP))});
-document.getElementById('reset').onclick=()=>{MAP=DEFMAP.slice();localStorage.setItem('gs_map',JSON.stringify(MAP));syncSel()};
-gear.onclick=e=>{e.stopPropagation();panel.classList.toggle('on')};
-addEventListener('pointerdown',e=>{if(!panel.contains(e.target)&&e.target!==gear)panel.classList.remove('on')});
