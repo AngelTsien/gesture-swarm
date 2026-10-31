@@ -33,7 +33,7 @@ geo.setAttribute('aIdx',new THREE.InstancedBufferAttribute(idx,1));geo.setAttrib
 const TRAIL=32;const trailArr=[],trail2=[];for(let i=0;i<TRAIL;i++){trailArr.push(new THREE.Vector2(0,.8));trail2.push(new THREE.Vector2(0,.8))}
 const U={uTime:{value:0},uFrom:{value:0},uTo:{value:0},uProg:{value:9},uModeT:{value:0},uN:{value:N},
   uTrail:{value:trailArr},uSpread:{value:1},uSize:{value:.24},uCenter:{value:new THREE.Vector2(0,.8)},uB:{value:.3},uCam:{value:cam.position},uTrail2:{value:trail2},uDual:{value:0},uSide:{value:1},uBT:{value:99},uBType:{value:0},uBF:{value:0},uHand:{value:new THREE.Vector2(0,.8)},uBDir:{value:new THREE.Vector3(1,0,0)},uScale:{value:1}};
-U.uFrom.value=2;U.uTo.value=2;U.uModeT.value=9;
+U.uFrom.value=0;U.uTo.value=0;U.uModeT.value=9;U.uScale.value=0;
 const mat=new THREE.ShaderMaterial({uniforms:U,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
 vertexShader:/*glsl*/`
 uniform float uTime,uFrom,uTo,uProg,uModeT,uN,uSpread,uSize;uniform vec2 uTrail[${TRAIL}];uniform vec2 uCenter;uniform vec3 uCam;uniform vec2 uTrail2[${TRAIL}];uniform float uDual,uSide,uBT,uBType,uBF;uniform vec2 uHand;uniform vec3 uBDir;uniform float uScale;
@@ -48,10 +48,10 @@ vec3 trail2At(float u){float f=clamp(u,0.,1.)*${TRAIL-1}.,i0=floor(f);return vec
 vec3 shape(float m,float mt){
   vec3 c=vec3(uCenter,0.);vec4 r=aRnd;S=1.;
   if(m<.5){ // open palm: uneven dandelion
-    float y=r.y*2.-1.,rr=sqrt(max(0.,1.-y*y)),th=r.x*6.2831+uTime*.1;
+    float y=r.y*2.-1.,rr=sqrt(max(0.,1.-y*y)),th=r.x*6.2831+uTime*.22;
     D=normalize(vec3(cos(th)*rr,y,sin(th)*rr)+(vec3(h(aIdx*.71),h(aIdx*.53),h(aIdx*.91))-.5)*.35);
     float n=sin(D.x*3.1+uTime*.4)*sin(D.y*2.7-uTime*.3)*sin(D.z*3.3+1.);
-    float rad=1.25+n*.35+pow(h(aIdx*2.3),2.)*.9;           // uneven radius, some long spikes
+    float rad=(1.25+n*.35+pow(h(aIdx*2.3),2.)*.9)*(1.+.06*sin(uTime*1.6+r.z*.8));           // uneven radius, some long spikes
     if(h(aIdx*5.1)<.04)rad*=1.6+h(aIdx*7.)*.8;             // stragglers
     C=green(r.w*.6);T=.1+h(aIdx*3.3)*.25;S=.55+pow(h(aIdx*4.4),2.)*1.1;
     return c+D*rad+flow(D*2.+r.xyz*4.,uTime*(.5+r.w))*.06;
@@ -117,7 +117,7 @@ void main(){
     else{bd=normalize(normalize(P-vec3(uCenter,0.)+jit*.3)+vec3(0.,0.,1.2));P+=bd*pow(age,1.2)*(7.+spd*7.)*env;}
     dir=normalize(mix(dir,bd,env));
   }
-  vCol=mix(cf,C,e);float tl=mix(tf,T,e),sc=mix(sf,S,e)*uSize*(.6+.4*zs);
+  vCol=mix(cf,C,e);float tl=mix(tf,T,e),sc=mix(sf,S,e)*uSize*(.6+.4*zs)*smoothstep(.02,.25,zs);
   vec3 view=normalize(uCam-P);vec3 X=normalize(cross(dir,view)+1e-5);
   vec3 lp=position;vPart=lp.z;vUv=uv;
   float ly=lp.z>1.5?-.34-lp.y*tl:lp.y;
@@ -149,7 +149,7 @@ function setMode(m){
   U.uFrom.value=U.uTo.value;U.uTo.value=m;U.uProg.value=0;U.uModeT.value=0;pending=null;showLabel(EFFECTS[m]);
 }
 function burst(b,dir){if(U.uBT.value<.6)return;const T=[0,1,2,1,3][b];U.uBType.value=T;U.uBF.value=b==2||b==4?1:b==0?.35:.6;U.uBDir.value.copy(dir||new THREE.Vector3(0,.1,1));U.uBT.value=0;showLabel(BURSTS[b])}
-addEventListener('keydown',e=>{const k=e.key;hideStart();if(k==='+'||k==='=')setZoom(zoomT*1.25);if(k==='-'||k==='_')setZoom(zoomT/1.25)});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();hideStart();if(k==='o'){open=true;showLabel('展开')}if(k==='f'){open=false;showLabel('收剑')}});
 let simDual=false;
 
 // One-Euro filter for the hand
@@ -163,8 +163,7 @@ function frame(now){
   const dt=Math.min(.05,(now-last)/1000)||.016;last=now;
   U.uTime.value+=dt;U.uProg.value+=dt;U.uModeT.value+=dt;
   if(pending!==null&&U.uProg.value>=.5)setMode(pending);
-  if(!present){const t=U.uTime.value;rawHand.x+=((Math.sin(t*.3)*.6)-rawHand.x)*.02;rawHand.y+=((.6+Math.sin(t*.45)*.3)-rawHand.y)*.02;zoomT+=(1-zoomT)*.005}
-  hand.x=fx.f(rawHand.x,dt);hand.y=fy.f(rawHand.y,dt);U.uHand.value.set(hand.x,hand.y);U.uCenter.value.set(hand.x,hand.y);U.uModeT.value=Math.max(U.uModeT.value,9);U.uBT.value+=dt;U.uScale.value+=(zoomT-U.uScale.value)*Math.min(1,dt*8);
+  hand.x=fx.f(rawHand.x,dt);hand.y=fy.f(rawHand.y,dt);U.uHand.value.set(hand.x,hand.y);U.uCenter.value.lerp(new THREE.Vector2(rawHand.x,rawHand.y),.15);U.uModeT.value=Math.max(U.uModeT.value,9);U.uBT.value+=dt;{const tgt=open?1:0,rate=open?1/.4:1/.3;const v=U.uScale.value;U.uScale.value=tgt>v?Math.min(tgt,v+rate*dt):Math.max(tgt,v-rate*dt);U.uScale.value=U.uScale.value;}
   if(!camOn){const t=U.uTime.value;raw2=simDual?{x:-rawHand.x*.8,y:.8+Math.cos(t*.8)*1.2}:null}
   if(raw2){hand2.x=fx2.f(raw2.x,dt);hand2.y=fy2.f(raw2.y,dt)}
   U.uDual.value+=(((raw2&&(camOn?dualT>0:simDual))?1:0)-U.uDual.value)*.06;
@@ -182,22 +181,17 @@ const video=document.getElementById('cam'),startEl=document.getElementById('star
 function hideStart(){startEl.classList.add('hide');if(!label.textContent)showLabel(EFFECTS[U.uTo.value])}
 document.getElementById('nocam').onclick=()=>{hideStart()};
 document.getElementById('camtoggle').onclick=()=>video.classList.toggle('on');
-let present=false,seen=0,miss=0,base2=null,d2=null,pin=null;
-// hands: [{x,y,pinch|null}] in world units. Only follow + zoom; nothing else can trigger.
+let open=false,cand=null,cnt=0,miss=0;
+// one hand: {x,y,state:'open'|'fist'|null}. Only OPEN and FIST change state, after 8 consistent frames (~250ms).
 function processHands(hands){
-  if(hands.length){seen++;miss=0}else{miss++;seen=0}
-  if(!present&&seen>=2){present=true;showLabel('跟随')}
-  if(present&&miss>=10){present=false;base2=null;d2=null;pin=null;showLabel('待机')}
-  if(!present||!hands.length)return;
-  rawHand.x=hands.length===2?(hands[0].x+hands[1].x)/2:hands[0].x;rawHand.y=hands.length===2?(hands[0].y+hands[1].y)/2:hands[0].y;
-  if(hands.length===2){const d=Math.hypot(hands[0].x-hands[1].x,hands[0].y-hands[1].y);d2=d2==null?d:d2+(d-d2)*.25;
-    if(!base2)base2={d:d2,z:zoomT,n:0};base2.n++;
-    if(base2.n>3){const t=base2.z*d2/Math.max(.5,base2.d);if(Math.abs(t-zoomT)>.04)setZoom(t)}pin=null;return}
-  base2=null;d2=null;
-  const p=hands[0].pinch;if(p==null){pin=null;return}
-  pin=pin==null?p:pin+(p-pin)*.15;const t=.6+(Math.min(.9,Math.max(.15,pin))-.15)/.75*1.2;if(Math.abs(t-zoomT)>.06)setZoom(t);
+  const h=hands[0];
+  if(!h){if(++miss>=8&&open){open=false;showLabel('收剑')}cand=null;cnt=0;return}
+  miss=0;rawHand.x=h.x;rawHand.y=h.y;
+  if(!h.state){cand=null;cnt=0;return}
+  if(h.state===cand)cnt++;else{cand=h.state;cnt=1}
+  if(cnt===8){const o=cand==='open';if(o!==open){open=o;showLabel(o?'展开':'收剑')}}
 }
-window.__sim=processHands;window.__c=()=>[U.uCenter.value.x,U.uCenter.value.y,zoomT,present];
+window.__sim=processHands;window.__c=()=>[U.uCenter.value.x,U.uCenter.value.y,U.uScale.value,open];
 document.getElementById('go').onclick=async()=>{
   errEl.textContent='正在启动…';
   try{
@@ -213,10 +207,11 @@ document.getElementById('go').onclick=async()=>{
     const loop=()=>{
       if(video.readyState>=2&&video.currentTime!==lt){lt=video.currentTime;
         const r=rec.detectForVideo(video,performance.now());const hw=hh*cam.aspect;
-        processHands((r.landmarks||[]).map(lm=>{const p=lm[9],size=Math.hypot(lm[0].x-lm[9].x,lm[0].y-lm[9].y)+1e-6;
-          const cur=k=>Math.hypot(lm[k].x-lm[0].x,lm[k].y-lm[0].y)<Math.hypot(lm[k-2].x-lm[0].x,lm[k-2].y-lm[0].y)*1.1;
-          const pr=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y)/size;
-          return{x:(.5-p.x)*2*hw*.85,y:(.5-p.y)*2*hh*.85,pinch:(cur(12)&&cur(16)&&cur(20))?pr:null}}));
+        let best=-1,bs=-1;(r.landmarks||[]).forEach((lm,i)=>{const sc=r.handedness&&r.handedness[i]?r.handedness[i][0].score:(r.handednesses&&r.handednesses[i]?r.handednesses[i][0].score:.5);if(sc>bs){bs=sc;best=i}});
+        if(best<0)processHands([]);else{const lm=r.landmarks[best],p=lm[9],w=lm[0],d=k=>Math.hypot(lm[k].x-w.x,lm[k].y-w.y);
+          const ext=[8,12,16,20].map(k=>d(k)>d(k-2)*1.15),curl=[8,12,16,20].map(k=>d(k)<d(k-2)*1.0);
+          const state=ext.every(Boolean)?'open':curl.every(Boolean)?'fist':null;
+          processHands([{x:(.5-p.x)*2*hh*cam.aspect*.85,y:(.5-p.y)*2*hh*.85,state}])}
       }
       requestAnimationFrame(loop)};loop();
   }catch(e){errEl.textContent='摄像头启动失败：'+e.message}
