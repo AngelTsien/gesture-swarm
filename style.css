@@ -13,3 +13,9 @@ button.ghost{border-color:rgba(255,255,255,.12);font-size:12px;opacity:.6}
 #cam{position:fixed;right:14px;top:14px;width:132px;border-radius:12px;transform:scaleX(-1);opacity:0;z-index:3;border:1px solid rgba(255,255,255,.15);transition:opacity .5s;pointer-events:none}
 #cam.on{opacity:.55}
 #camtoggle{position:fixed;right:14px;bottom:14px;z-index:4;font-size:11px;padding:6px 12px;opacity:.45}
+#gear{position:fixed;left:14px;bottom:14px;z-index:4;font-size:14px;padding:5px 11px;opacity:.5;letter-spacing:0}
+#panel{position:fixed;left:14px;bottom:56px;max-height:75vh;overflow:auto;z-index:6;padding:14px 16px;border-radius:14px;background:rgba(10,20,16,.55);border:1px solid rgba(200,255,225,.15);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;flex-direction:column;gap:10px;font-size:13px;letter-spacing:.1em;opacity:0;pointer-events:none;transform:translateY(6px);transition:all .3s}
+#panel.on{opacity:1;pointer-events:auto;transform:none}
+#panel .ph{font-size:11px;opacity:.5;letter-spacing:.3em}
+#panel label{display:flex;justify-content:space-between;gap:16px;align-items:center}
+#panel select{font-family:inherit;font-weight:300;background:rgba(255,255,255,.06);color:#e6fff0;border:1px solid rgba(200,255,225,.2);border-radius:8px;padding:4px 6px;font-size:13px}
